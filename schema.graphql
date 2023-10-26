@@ -1,0 +1,26 @@
+type Query {
+    users: [User]
+}
+
+type User {
+    email: String
+    id: Int
+    name: String
+    phone: String
+    username: String
+}
+
+type Conversation {
+    content: String
+}
+
+type AddBookMutationResponse {
+    code: String!
+    success: Boolean!
+    message: String!
+    user: User
+}
+
+type Mutation {
+    addBook(title: String, author: String): AddBookMutationResponse
+}
