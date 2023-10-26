@@ -22,5 +22,10 @@ type AddBookMutationResponse {
 }
 
 type Mutation {
-    addBook(title: String, author: String): AddBookMutationResponse
+    findUser(id: Int): User
+}
+
+type Subscription {
+    responseFromLlm: Conversation
+    lastfind: User
 }

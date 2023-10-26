@@ -1,63 +1,92 @@
 import { readFileSync } from "fs";
+import axios from "axios";
+import express from "express";
+import cors from "cors";
+import { expressMiddleware } from "@apollo/server/express4";
 import { ApolloServer } from "@apollo/server";
 import { startStandaloneServer } from "@apollo/server/standalone";
-import axios from "axios";
+import { createServer } from "http";
+import { ApolloServerPluginDrainHttpServer } from "@apollo/server/plugin/drainHttpServer";
+import { makeExecutableSchema } from "@graphql-tools/schema";
+import { WebSocketServer } from "ws";
+import { useServer } from "graphql-ws/lib/use/ws";
+import { PubSub } from "graphql-subscriptions";
+
 import { UsersResponse } from "./src/interfaces/UsersResponse";
+import { getUsers } from "./src/services/getUsers.service";
+import { getUser } from "./src/services/getUser.service";
 
 const typeDefs = readFileSync("./schema.graphql", { encoding: "utf-8" });
 
-// interface MyContext {
-//     dataSources: {
-//         books: Book[];
-//     };
-// }
+const pubSub = new PubSub();
 
-interface Book {
-    title: string;
-    author: string;
-}
+const mockLongLastFind = (data: any) => {
+    setTimeout(() => {
+        pubSub.publish("LAST_FIND", { lastfind: data });
+    }, 3000);
+};
 
-const books = [
-    {
-        title: "The Awakening",
-        author: "Kate Chopin",
-    },
-    {
-        title: "City of Glass",
-        author: "Paul Auster",
-    },
-];
-
-// Resolvers define how to fetch the types defined in your schema.
-// This resolver retrieves books from the "books" array above.
 const resolvers = {
     Query: {
         users: async () => {
-            const { data } = await axios.get<UsersResponse>(
-                "https://jsonplaceholder.typicode.com/users"
-            );
+            const data = await getUsers();
             return data;
+        },
+    },
+    Mutation: {
+        findUser: async (root: any, { id }: any) => {
+            const data = await getUser(id);
+            mockLongLastFind(data);
+            return data;
+        },
+    },
+    Subscription: {
+        lastfind: {
+            subscribe: () => pubSub.asyncIterator(["LAST_FIND"]),
         },
     },
 };
 
-// The ApolloServer constructor requires two parameters: your schema
-// definition and your set of resolvers.
-const server = new ApolloServer({
-    typeDefs,
-    resolvers,
+const schema = makeExecutableSchema({ typeDefs, resolvers });
+
+const port = process.env.port || 4000;
+
+const app = express();
+app.use(cors());
+const httpServer = createServer(app);
+
+const wsServer = new WebSocketServer({
+    server: httpServer,
+    path: "/graphql",
 });
 
-const main = async () => {
-    // Passing an ApolloServer instance to the `startStandaloneServer` function:
-    //  1. creates an Express app
-    //  2. installs your ApolloServer instance as middleware
-    //  3. prepares your app to handle incoming requests
-    const { url } = await startStandaloneServer(server, {
-        listen: { port: 4000 },
-    });
+const apolloServer = new ApolloServer({
+    schema,
+    plugins: [
+        ApolloServerPluginDrainHttpServer({ httpServer }),
+        {
+            async serverWillStart() {
+                return {
+                    async drainServer() {
+                        await wsServerCleanup.dispose();
+                    },
+                };
+            },
+        },
+    ],
+});
 
-    console.log(`🚀  Server ready at: ${url}`);
+const wsServerCleanup = useServer({ schema }, wsServer);
+
+const main = async () => {
+    await apolloServer.start();
+
+    app.use(express.json());
+    app.use("/graphql", expressMiddleware(apolloServer));
+
+    httpServer.listen(port, () => {
+        console.log(`Query endpoint ready at http://localhost:${port}/graphql`);
+    });
 };
 
 main();
