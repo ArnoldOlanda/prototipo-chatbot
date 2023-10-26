@@ -1,10 +1,8 @@
 import { readFileSync } from "fs";
-import axios from "axios";
 import express from "express";
 import cors from "cors";
 import { expressMiddleware } from "@apollo/server/express4";
 import { ApolloServer } from "@apollo/server";
-import { startStandaloneServer } from "@apollo/server/standalone";
 import { createServer } from "http";
 import { ApolloServerPluginDrainHttpServer } from "@apollo/server/plugin/drainHttpServer";
 import { makeExecutableSchema } from "@graphql-tools/schema";
@@ -12,7 +10,6 @@ import { WebSocketServer } from "ws";
 import { useServer } from "graphql-ws/lib/use/ws";
 import { PubSub } from "graphql-subscriptions";
 
-import { UsersResponse } from "./src/interfaces/UsersResponse";
 import { getUsers } from "./src/services/getUsers.service";
 import { getUser } from "./src/services/getUser.service";
 
